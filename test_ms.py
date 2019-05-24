@@ -52,11 +52,11 @@ def test(model, args):
         if not os.path.exists(os.path.join(save_dir, 'fuse')):
             os.mkdir(os.path.join(save_dir, 'fuse'))
         cv2.imwrite(os.path.join(save_dir, 'fuse', '%s.jpg'%nm[i]), 255-ms_fuse*255)
-    print 'Overall Time use: ', time.time() - start_time
+    print('Overall Time use: ', time.time() - start_time)
 
 def main():
     import time
-    print time.localtime()
+    print(time.localtime())
     args = parse_args()
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
     model = bdcn.BDCN()

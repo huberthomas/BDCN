@@ -41,7 +41,7 @@ def main():
 	sys.path.append(args.caffe_root)
 	import caffe
 	net = caffe.Net(args.caffe_proto, args.caffe_model, caffe.TEST)
-	print dir(net.layers[1].blobs[0])
+	print(dir(net.layers[1].blobs[0]))
 	# for i, x in enumerate(net._layer_names):
 	# 	print x, net.layers[i].type,
 	# 	if x in net.params:
@@ -52,7 +52,7 @@ def main():
 	f = open(args.caffe_proto.split('.')[0]+'.py', 'w')
 	stdout = sys.stdout
 	sys.stdout = f
-	print 'model = ', model
+	print('model = ', model)
 	sys.stdout = stdout
 	f.close()
 

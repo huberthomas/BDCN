@@ -342,6 +342,6 @@ class BDCN(nn.Module):
                     param.normal_(0, 0.01)
 
 if __name__ == '__main__':
-    model = BDCN('./caffemodel2pytorch/vgg16.pth')
+    model = BDCN('./models/vgg16.pth')
     for name, param in model.state_dict().items():
-        print name, param
+        print(name, param)

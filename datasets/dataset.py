@@ -6,12 +6,12 @@ import scipy.io
 import torch
 from torch.utils import data
 import random
-from cStringIO import StringIO
+from io import StringIO
 
 
 def load_image_with_cache(path, cache=None, lock=None):
 	if cache is not None:
-		if not cache.has_key(path):
+		if path not in cache:
 			with open(path, 'rb') as f:
 				cache[path] = f.read()
 		return Image.open(StringIO(cache[path]))
@@ -48,11 +48,11 @@ class Data(data.Dataset):
 		if not os.path.exists(img_file):
 			img_file = img_file.replace('jpg', 'png')
 		# img = Image.open(img_file)
-		img = load_image_with_cache(img_file, self.cache)
+		img = load_image_with_cache(img_file, None)#self.cache)
 		# load gt image
 		gt_file = self.root + data_file[1]
 		# gt = Image.open(gt_file)
-		gt = load_image_with_cache(gt_file, self.cache)
+		gt = load_image_with_cache(gt_file, None)#self.cache)
 		if gt.mode == '1':
 			gt  = gt.convert('L')
 		return self.transform(img, gt)

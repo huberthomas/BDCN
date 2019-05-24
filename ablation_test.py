@@ -53,12 +53,12 @@ def test(model, args):
         cv2.imwrite(os.path.join(save_dir, 'fuse', '%s.jpg'%nm[i]), 255-t*255)
         all_t += time.time() - t1
 
-    print all_t
-    print 'Overall Time use: ', time.time() - start_time
+    print(all_t)
+    print('Overall Time use: ', time.time() - start_time)
 
 def main():
     import time
-    print time.localtime()
+    print(time.localtime())
     args = parse_args()
     args.bdcn = not args.no_bdcn
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu

@@ -3,12 +3,38 @@
 This paper proposes a Bi-Directional Cascade Network for edge detection. By introducing a bi-directional cascade structure to enforce each layer to focus on a specific scale, BDCN trains each network layer with a layer-specific supervision. To enrich the multi-scale representations learned with a shallow network, we further introduce a Scale Enhancement
 Module (SEM). Here are the code for this paper.
 
-
 ### Prerequisites
 
-- pytorch >= 0.2.0(Our code is based on the 0.2.0)
-- numpy >= 1.11.0
-- pillow >= 3.3.0
+Download and install Anaconda
+
+    - pytorch >= 0.2.0(Our code is based on the 0.2.0)
+    - numpy >= 1.11.0
+    - pillow >= 3.3.0
+
+    wget https://repo.anaconda.com/archive/Anaconda3-2019.03-Linux-x86_64.sh
+    sh Anaconda3-2019.03-Linux-x86_64.sh
+    conda init
+
+Use conda activate/deactivate to en- or disable conda environment.
+
+Depending on your setup follow the instructions from [Pytorch](https://pytorch.org/get-started/previous-versions/).
+
+    conda install numpy ninja pyyaml mkl mkl-include setuptools cmake cffi typing
+    conda install pytorch=0.2.0 cuda92 -c pytorch
+    conda install numpy pillow opencv
+
+Test Pytorch installation
+
+    from __future__ import print_function
+    import torch
+    x = torch.rand(5, 3)
+    print(x)
+
+Test CUDA
+
+    import torch
+    torch.cuda.is_available()
+
 
 ### Train and Evaluation
 
