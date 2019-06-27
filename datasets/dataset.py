@@ -43,7 +43,7 @@ class Data(data.Dataset):
 	def __getitem__(self, index):
 		data_file = self.files[index]
 		# load Image
-		img_file = os.path.joint(self.root, data_file[0])
+		img_file = os.path.join(self.root, data_file[0])
 		# print(img_file)
 		if not os.path.exists(img_file):
 			img_file = img_file.replace('jpg', 'png')
