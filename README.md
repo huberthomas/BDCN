@@ -19,11 +19,15 @@ Use conda activate/deactivate to en- or disable conda environment.
 
 Depending on your setup follow the instructions from [Pytorch](https://pytorch.org/get-started/previous-versions/).
 
+    conda create -n bdcn
     conda install numpy ninja pyyaml mkl mkl-include setuptools cmake cffi typing
     conda install pytorch=0.2.0 cuda92 -c pytorch
-    conda install numpy pillow opencv
+    conda install torchvision scipy numpy pillow opencv matplotlib
 
 Test Pytorch installation
+
+    conda activate bdcn
+    python
 
     from __future__ import print_function
     import torch
@@ -31,6 +35,9 @@ Test Pytorch installation
     print(x)
 
 Test CUDA
+
+    conda activate bdcn
+    python
 
     import torch
     torch.cuda.is_available()
