@@ -147,10 +147,10 @@ def main():
 
     # ]    
 
-    for inputDir in inputDirs:
-      args.inputDir = inputDir
-      args.cuda = True
-      forwardAll(model, args)
+    # for inputDir in inputDirs:
+    #   args.inputDir = inputDir
+    #   args.cuda = True
+    forwardAll(model, args)
 
 
 def parse_args():
