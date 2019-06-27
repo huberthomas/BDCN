@@ -78,6 +78,11 @@ def sigmoid(x):
 
 def forwardAll(model, args):
     test_root = cfg.config_test[args.dataset]['data_root']
+
+    if(args.inputDir is not None):
+      test_root = args.inputDir
+
+    logging.info('Processing: %s' % test_root)
     test_lst = cfg.config_test[args.dataset]['data_lst']
 
     imageFileNames = createDataList(test_root, test_lst)
@@ -116,12 +121,8 @@ def forwardAll(model, args):
         elapsedTime = time.time() - tm
         timeRecords.write('%s %f\n'%(imageFileNames[i], elapsedTime * 1000))
 
-        # cv2.imwrite(os.path.join(save_dir, '%s.png'%imageFileNames[i]), 255-fuse*255)
-        cv2.imwrite(os.path.join(save_dir, '%s.png'%imageFileNames[i]), fuse*255)
+        cv2.imwrite(os.path.join(save_dir, '%s' % imageFileNames[i]), fuse*255)
 
-        # if not os.path.exists(os.path.join(save_dir, 'fuse')):
-            # os.mkdir(os.path.join(save_dir, 'fuse'))
-            
         all_t += time.time() - tm
 
     timeRecords.close()
@@ -131,19 +132,31 @@ def forwardAll(model, args):
 
 def main():
     args = parse_args()
-    logging.info('Processing: %s'%cfg.config_test[args.dataset]['data_root'])
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
     logging.info('Loading model...')
     model = bdcn.BDCN()
     logging.info('Loading state...')
     model.load_state_dict(torch.load('%s' % (args.model)))
     logging.info('Start image processing...')
-    forwardAll(model, args)
+
+    # baseDir = '/run/user/1000/gvfs/smb-share:server=192.168.0.253,share=data/Master/datasets/'
+    # inputDirs = [
+    #   os.path.join(baseDir, 'desk_daylight_static', 'rgb'),
+    #   os.path.join(baseDir, 'desk_dimmed_static', 'rgb'),
+    #   os.path.join(baseDir, 'desk_neon_static', 'rgb')
+
+    # ]    
+
+    for inputDir in inputDirs:
+      args.inputDir = inputDir
+      args.cuda = True
+      forwardAll(model, args)
 
 
 def parse_args():
     parser = argparse.ArgumentParser('test BDCN')
     parser.add_argument('-d', '--dataset', type=str, choices=cfg.config_test.keys(), default='bsds500', help='The dataset to train')
+    parser.add_argument('-i', '--inputDir', type=str, default=None, help='Input image directory for testing.')
     parser.add_argument('-c', '--cuda', action='store_true', help='whether use gpu to train network')
     parser.add_argument('-g', '--gpu', type=str, default='0', help='the gpu id to train net')
     parser.add_argument('-m', '--model', type=str, default='models/bdcn_pretrained_on_bsds500.pth', help='the model to test')
