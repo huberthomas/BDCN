@@ -17,40 +17,6 @@ from matplotlib import pyplot as plt
 from os.path import splitext, join
 import logging
 
-def correctFilePath(path):
-  '''
-  @brief correct file separators and add separator for directories at the end.
-  '''
-  path = path.replace('/', os.path.sep)
-  path = path.replace('\\', os.path.sep)
-
-  if os.path.isdir(path):
-    if path[len(path) - 1] != os.path.sep:
-      path = path + os.path.sep
-
-  return path
-
-
-def getImageFileNames(inputDir, supportedExtensions=['.png', '.jpg', '.jpeg']):
-  '''
-  @brief Get image files (png, jpg, jpeg) from an input directory.
-  @param inputDir Input directory that contains images.
-  @param supportedExtensions Only files with supported extensions are included in the final list.
-  @return List of images file names.
-  '''
-  res = []
-
-  for root, directories, files in os.walk(inputDir):
-      for f in files:
-          for extension in supportedExtensions:
-            fn, ext = splitext(f.lower())
-
-            if extension == ext:
-              res.append(f)
-
-  return res
-
-
 def createDataList(inputDir, outputFileName='data.lst', supportedExtensions=['.png', '.jpg', '.jpeg']):
   '''
   @brief Get image files (png, jpg, jpeg) from an input directory and save it as pair to data_lst.txt.
@@ -139,18 +105,16 @@ def main():
     model.load_state_dict(torch.load('%s' % (args.model)))
     logging.info('Start image processing...')
 
-    # baseDir = '/run/user/1000/gvfs/smb-share:server=192.168.0.253,share=data/Master/datasets/'
+    # baseDir = '/home/user/results/'
     # inputDirs = [
-    #   os.path.join(baseDir, 'desk_daylight_static', 'rgb'),
-    #   os.path.join(baseDir, 'desk_dimmed_static', 'rgb'),
-    #   os.path.join(baseDir, 'desk_neon_static', 'rgb')
-
+    #   os.path.join(baseDir, 'dir_1', 'rgb'),
+    #   os.path.join(baseDir, 'dir_2', 'rgb'),      
     # ]    
 
-    # for inputDir in inputDirs:
-    #   args.inputDir = inputDir
-    #   args.cuda = True
-    forwardAll(model, args)
+    for inputDir in inputDirs:
+      args.inputDir = inputDir
+      args.cuda = True
+      forwardAll(model, args)
 
 
 def parse_args():
@@ -166,6 +130,5 @@ def parse_args():
 
 
 if __name__ == '__main__':
-    logging.basicConfig(
-      format='%(asctime)s %(levelname)s:\t%(message)s', level=logging.INFO)
+    logging.basicConfig(format='%(asctime)s %(levelname)s:\t%(message)s', level=logging.INFO)
     main()
