@@ -21,7 +21,7 @@ def test(model, args):
     test_name_lst = os.path.join(test_root, 'voc_valtest.txt')
     if 'Multicue' in args.dataset:
         test_lst = test_lst % args.k
-        test_name_lst = os.path.join(test_root, 'test%d_id.txt'%args.k)
+        test_name_lst = os.path.join(test_root, 'test%d_id.txt' % args.k)
     mean_bgr = np.array(cfg.config_test[args.dataset]['mean_bgr'])
     test_img = Data(test_root, test_lst, mean_bgr=mean_bgr, scale=[0.5, 1, 1.5])
     testloader = torch.utils.data.DataLoader(
@@ -51,8 +51,9 @@ def test(model, args):
         ms_fuse /= len(ms_data)
         if not os.path.exists(os.path.join(save_dir, 'fuse')):
             os.mkdir(os.path.join(save_dir, 'fuse'))
-        cv2.imwrite(os.path.join(save_dir, 'fuse', '%s.jpg'%nm[i]), 255-ms_fuse*255)
+        cv2.imwrite(os.path.join(save_dir, 'fuse', '%s.jpg' % nm[i]), 255-ms_fuse*255)
     print('Overall Time use: ', time.time() - start_time)
+
 
 def main():
     import time
@@ -63,21 +64,17 @@ def main():
     model.load_state_dict(torch.load('%s' % (args.model)))
     test(model, args)
 
+
 def parse_args():
     parser = argparse.ArgumentParser('test BDCN')
-    parser.add_argument('-d', '--dataset', type=str, choices=cfg.config_test.keys(),
-        default='bsds500', help='The dataset to train')
-    parser.add_argument('-c', '--cuda', action='store_true',
-        help='whether use gpu to train network')
-    parser.add_argument('-g', '--gpu', type=str, default='0',
-        help='the gpu id to train net')
-    parser.add_argument('-m', '--model', type=str, default='params/bdcn_40000.pth',
-        help='the model to test')
-    parser.add_argument('--res-dir', type=str, default='result',
-        help='the dir to store result')
-    parser.add_argument('-k', type=int, default=1,
-        help='the k-th split set of multicue')
+    parser.add_argument('-d', '--dataset', type=str, choices=cfg.config_test.keys(), default='bsds500', help='The dataset to train')
+    parser.add_argument('-c', '--cuda', action='store_true', help='whether use gpu to train network')
+    parser.add_argument('-g', '--gpu', type=str, default='0', help='the gpu id to train net')
+    parser.add_argument('-m', '--model', type=str, default='params/bdcn_40000.pth', help='the model to test')
+    parser.add_argument('--res-dir', type=str, default='result', help='the dir to store result')
+    parser.add_argument('-k', type=int, default=1, help='the k-th split set of multicue')
     return parser.parse_args()
+
 
 if __name__ == '__main__':
     main()

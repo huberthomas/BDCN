@@ -15,6 +15,7 @@ import cfg
 import log
 import cv2
 
+
 def adjust_learning_rate(optimizer, steps, step_size, gamma=0.1, logger=None):
     """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
 
@@ -46,6 +47,7 @@ def cross_entropy_loss2d(inputs, targets, cuda=False, balance=1.1):
     loss = nn.BCELoss(weights, size_average=False)(inputs, targets)
     return loss
 
+
 def train(model, args):
     data_root = cfg.config[args.dataset]['data_root']
     data_lst = cfg.config[args.dataset]['data_lst']
@@ -55,8 +57,7 @@ def train(model, args):
     yita = args.yita if args.yita else cfg.config[args.dataset]['yita']
     crop_size = args.crop_size
     train_img = Data(data_root, data_lst, yita, mean_bgr=mean_bgr, crop_size=crop_size)
-    trainloader = torch.utils.data.DataLoader(train_img,
-        batch_size=args.batch_size, shuffle=True, num_workers=5)
+    trainloader = torch.utils.data.DataLoader(train_img, batch_size=args.batch_size, shuffle=True, num_workers=5)
 
     params_dict = dict(model.named_parameters())
     base_lr = args.base_lr
@@ -99,8 +100,7 @@ def train(model, args):
                 params += [{'params': v, 'lr': base_lr*0.001, 'weight_decay': weight_decay*1, 'name': key}]
             elif 'bias' in key:
                 params += [{'params': v, 'lr': base_lr*0.002, 'weight_decay': weight_decay*0, 'name': key}]
-    optimizer = torch.optim.SGD(params, momentum=args.momentum,
-        lr=args.base_lr, weight_decay=args.weight_decay)
+    optimizer = torch.optim.SGD(params, momentum=args.momentum, lr=args.base_lr, weight_decay=args.weight_decay)
     start_step = 1
     mean_loss = []
     cur = 0
@@ -119,6 +119,10 @@ def train(model, args):
     if args.resume:
         logger.info('resume from %s' % args.resume)
         state = torch.load(args.resume)
+        logger.info('*'*40)
+        # for x in state.__dict__:
+        #     logger.info(x)
+        logger.info('*'*40)
         start_step = state['step']
         optimizer.load_state_dict(state['solver'])
         model.load_state_dict(state['param'])
@@ -154,13 +158,14 @@ def train(model, args):
             adjust_learning_rate(optimizer, step, args.step_size, args.gamma)
         if step % args.snapshots == 0:
             torch.save(model.state_dict(), '%s/bdcn_%d.pth' % (args.param_dir, step))
-            state = {'step': step+1,'param':model.state_dict(),'solver':optimizer.state_dict()}
+            state = {'step': step+1, 'param': model.state_dict(), 'solver': optimizer.state_dict()}
             torch.save(state, '%s/bdcn_%d.pth.tar' % (args.param_dir, step))
         if step % args.display == 0:
             tm = time.time() - start_time
             logger.info('iter: %d, lr: %e, loss: %f, time using: %f(%fs/iter)' % (step,
-                optimizer.param_groups[0]['lr'], np.mean(mean_loss), tm, tm/args.display))
+                                                                                  optimizer.param_groups[0]['lr'], np.mean(mean_loss), tm, tm/args.display))
             start_time = time.time()
+
 
 def main():
     args = parse_args()
@@ -169,37 +174,38 @@ def main():
     logger.info('*'*80)
     logger.info('the args are the below')
     logger.info('*'*80)
-    
+
     for x in args.__dict__:
         logger.info(x+','+str(args.__dict__[x]))
-    
+
     logger.info(cfg.config[args.dataset])
     logger.info('*'*80)
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
-    
+
     if not os.path.exists(args.param_dir):
         os.mkdir(args.param_dir)
-    
+
     torch.manual_seed(long(time.time()))
 
     model = bdcn.BDCN(pretrain=args.pretrain, logger=logger)
-    
+
     if args.complete_pretrain:
         model.load_state_dict(torch.load(args.complete_pretrain))
 
     logger.info(model)
     train(model, args)
 
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Train BDCN for different args')
     parser.add_argument('-d', '--dataset', type=str, choices=cfg.config.keys(), default='bsds500', help='The dataset to train')
-    #parser.add_argument('-i', '--inputDir', type=str, default=None, 'Directory of the dataset to train.')
+    # parser.add_argument('-i', '--inputDir', type=str, default=None, 'Directory of the dataset to train.')
     parser.add_argument('--param_dir', type=str, default='params', help='the directory to store the params')
     parser.add_argument('--lr', dest='base_lr', type=float, default=1e-6, help='the base learning rate of model')
-    parser.add_argument('-m', '--momentum', type=float, default=0.9, help='the momentum')
+    parser.add_argument('-m', '--momentum', type=float, default=0.9, help='the momentum, speed of learning')
     parser.add_argument('-c', '--cuda', action='store_true', help='whether use gpu to train network')
     parser.add_argument('-g', '--gpu', type=str, default='0',  help='the gpu id to train net')
-    parser.add_argument('--weight_decay', type=float, default=0.0002, help='the weight_decay of net')
+    parser.add_argument('--weight_decay', type=float, default=0.0002, help='the weight_decay of net, L2 penalty to the costs which leads to smaller model weights')
     parser.add_argument('-r', '--resume', type=str, default=None, help='whether resume from some, default is None')
     parser.add_argument('-p', '--pretrain', type=str, default=None, help='init net from pretrained model default is None')
     parser.add_argument('--max_iter', type=int, default=40000, help='max iters to train network, default is 40000')
@@ -213,14 +219,16 @@ def parse_args():
     parser.add_argument('-k', type=int, default=1, help='the k-th split set of multicue')
     parser.add_argument('--batch_size', type=int, default=1, help='batch size of one iteration, default 1')
     parser.add_argument('--crop_size', type=int, default=None, help='the size of image to crop, default not crop')
-    parser.add_argument('--yita', type=float, default=None, help='the param to operate gt, default is data in the config file')
+    parser.add_argument('--yita', type=float, default=None, help='the param to operate gt, default is data in the config file, between 0 and 1, it controls good or bad edges from the ground truth')
     parser.add_argument('--complete_pretrain', type=str, default=None, help='finetune on the complete_pretrain, default None')
     parser.add_argument('--side_weight', type=float, default=0.5, help='the loss weight of sideout, default 0.5')
     parser.add_argument('--fuse_weight', type=float, default=1.1, help='the loss weight of fuse, default 1.1')
     parser.add_argument('--gamma', type=float, default=0.1, help='the decay of learning rate, default 0.1')
     return parser.parse_args()
 
+
 if __name__ == '__main__':
     main()
 
 
+# python train.py -p /home/tom/University/repositories/projects/bdcn/models/bdcn_algo_on_bsds500.pth --max_iter 10000 --cuda

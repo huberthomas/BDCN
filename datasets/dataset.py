@@ -7,6 +7,7 @@ import torch
 from torch.utils import data
 import random
 from io import StringIO
+import cv2
 
 
 def load_image_with_cache(path, cache=None, lock=None):
@@ -15,6 +16,11 @@ def load_image_with_cache(path, cache=None, lock=None):
 			with open(path, 'rb') as f:
 				cache[path] = f.read()
 		return Image.open(StringIO(cache[path]))
+
+	#im = cv2.imread(path, cv2.IMREAD_UNCHANGED)
+	#im = cv2.pyrDown(im)
+	#im = cv2.pyrDown(im)
+	#return Image.fromarray(im)
 	return Image.open(path)
 
 
