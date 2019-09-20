@@ -3,7 +3,6 @@ import torch
 import torch.optim as optim
 import torch.nn as nn
 from torch.autograd import Variable
-from torch.nn import functional as F
 import argparse
 import time
 import re
@@ -44,7 +43,7 @@ def cross_entropy_loss2d(inputs, targets, cuda=False, balance=1.1):
     if cuda:
         weights = weights.cuda()
     weights = Variable(weights)
-    inputs = F.sigmoid(inputs)
+    inputs = torch.sigmoid(inputs)
     loss = nn.BCELoss(weights, size_average=False)(inputs, targets)
 
     return loss
@@ -101,8 +100,7 @@ def train(model, args):
                 params += [{'params': v, 'lr': base_lr*0.001, 'weight_decay': weight_decay*1, 'name': key}]
             elif 'bias' in key:
                 params += [{'params': v, 'lr': base_lr*0.002, 'weight_decay': weight_decay*0, 'name': key}]
-    optimizer = torch.optim.SGD(params, momentum=args.momentum,
-        lr=args.base_lr, weight_decay=args.weight_decay)
+    optimizer = torch.optim.SGD(params, momentum=args.momentum, lr=args.base_lr, weight_decay=args.weight_decay)
     start_step = 1
     mean_loss = []
     cur = 0

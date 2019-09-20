@@ -3,7 +3,6 @@ import torch
 import torch.optim as optim
 import torch.nn as nn
 from torch.autograd import Variable
-from torch.nn import functional as F
 import time
 import re
 import os
@@ -16,27 +15,43 @@ import cfg
 from matplotlib import pyplot as plt
 from os.path import splitext, join
 import logging
+import fnmatch
+import multiprocessing as mp
 
-def createDataList(inputDir, outputFileName='data.lst', supportedExtensions=['.png', '.jpg', '.jpeg']):
-  '''
-  @brief Get image files (png, jpg, jpeg) from an input directory and save it as pair to data_lst.txt.
-  @param inputDir Input directory that contains images.
-  @param supportedExtensions Only files with supported extensions are included in the final list.
-  @return Found images as list.
-  '''
-  out = open(join(inputDir, outputFileName), "w")
-  res = []
-  for root, directories, files in os.walk(inputDir):
-      for f in files:
-          for extension in supportedExtensions:
-            fn, ext = splitext(f.lower())
+def createDataList(inputDir = None, outputFileName='data.lst', supportedExtensions = ['png', 'jpg', 'jpeg']):
+    '''
+    Get files e.g. (png, jpg, jpeg) from an input directory. It is case insensitive to the extensions.
 
-            if extension == ext:
-              out.write('%s %s\n' % (f, f))
-              res.append(f)
+    inputDir Input directory that contains images.
 
-  out.close()
-  return res
+    supportedExtensions Only files with supported extensions are included in the final list. Case insensitive.
+
+    Returns a list of images file names.
+    '''
+    if inputDir is None:
+        raise ValueError('Input directory must be set.')
+
+    if supportedExtensions is None or len(supportedExtensions) == 0:
+        raise ValueError('Supported extensions must be set.')
+
+    res = []
+
+    dirList = os.listdir(inputDir)
+
+    for extension in supportedExtensions:
+        pattern = ''
+        for char in extension:
+            pattern += ('[%s%s]' % (char.lower(), char.upper()))
+
+        res.extend(fnmatch.filter(dirList, '*.%s' % (pattern)))
+
+    out = open(join(inputDir, outputFileName), "w")
+
+    for f in res:
+        out.write('%s %s\n' % (f, f))
+
+    out.close()
+    return res
 
 def sigmoid(x):
     return 1./(1+np.exp(np.array(-1.*x)))
@@ -54,8 +69,8 @@ def forwardAll(model, args):
     imageFileNames = createDataList(test_root, test_lst)
     
     mean_bgr = np.array(cfg.config_test[args.dataset]['mean_bgr'])
-    test_img = Data(test_root, test_lst, mean_bgr=mean_bgr)
-    testloader = torch.utils.data.DataLoader(test_img, batch_size=1, shuffle=False, num_workers=8)
+    test_img = Data(test_root, test_lst, mean_bgr=mean_bgr, shuffle=False, crop_padding=0, crop_size=None)
+    testloader = torch.utils.data.DataLoader(test_img, batch_size=1, shuffle=False, num_workers=mp.cpu_count())
     # nm = np.loadtxt(test_name_lst, dtype=str)
     # print(len(testloader), len(nm))
     # assert len(testloader) == len(nm)
@@ -78,18 +93,20 @@ def forwardAll(model, args):
     for i, (data, _) in enumerate(testloader):
         if args.cuda:
             data = data.cuda()
-        data = Variable(data, volatile=True)
-        tm = time.time()
+
+            with torch.no_grad():
+                data = Variable(data)#, volatile=True)
+                tm = time.time()
         
-        out = model(data)
-        fuse = F.sigmoid(out[-1]).cpu().data.numpy()[0, 0, :, :]
+                out = model(data)
+                fuse = torch.sigmoid(out[-1]).cpu().data.numpy()[0, 0, :, :]
 
-        elapsedTime = time.time() - tm
-        timeRecords.write('%s %f\n'%(imageFileNames[i], elapsedTime * 1000))
+                elapsedTime = time.time() - tm
+                timeRecords.write('%s %f\n'%(imageFileNames[i], elapsedTime * 1000))
 
-        cv2.imwrite(os.path.join(save_dir, '%s' % imageFileNames[i]), fuse*255)
+                cv2.imwrite(os.path.join(save_dir, '%s' % imageFileNames[i]), fuse*255)
 
-        all_t += time.time() - tm
+                all_t += time.time() - tm
 
     timeRecords.close()
     print(all_t)
@@ -105,15 +122,39 @@ def main():
     model.load_state_dict(torch.load('%s' % (args.model)))
     logging.info('Start image processing...')
 
-    # baseDir = '/home/user/results/'
+    inputDirs = [
+        '/run/user/1000/gvfs/smb-share:server=192.168.0.253,share=data/Master/datasets/bsr_bsds500/BSR/BSDS500/data/images/test_png/'
+        #'/run/user/1000/gvfs/smb-share:server=192.168.0.253,share=data/Master/datasets/test_dataset/hdr_fusion/flicker_synthetic/flicker_1'
+        ]
+    #baseDir = '/run/user/1000/gvfs/smb-share:server=192.168.0.253,share=data/Master/datasets/'
+    #inputDirs = [
+      #args.inputDir
+      #os.path.join(baseDir, 'rgbd_dataset_freiburg1_desk/rgb/'),
+      #os.path.join(baseDir, 'rgbd_dataset_freiburg1_desk2/rgb/'),
+      #os.path.join(baseDir, 'rgbd_dataset_freiburg1_plant/rgb/'),
+      #os.path.join(baseDir, 'rgbd_dataset_freiburg1_room/rgb/'),
+      #os.path.join(baseDir, 'rgbd_dataset_freiburg1_rpy/rgb/'),
+      #os.path.join(baseDir, 'rgbd_dataset_freiburg1_xyz/rgb/'),
+      #os.path.join(baseDir, 'rgbd_dataset_freiburg2_desk/rgb/'),
+      #os.path.join(baseDir, 'rgbd_dataset_freiburg2_xyz/rgb/'),
+      #os.path.join(baseDir, 'rgbd_dataset_freiburg3_long_office_household/rgb/'),
+    #]   
+    # baseDir = '/run/user/1000/gvfs/smb-share:server=192.168.0.253,share=data/Master/datasets/test_dataset'
     # inputDirs = [
-    #   os.path.join(baseDir, 'dir_1', 'rgb'),
-    #   os.path.join(baseDir, 'dir_2', 'rgb'),      
-    # ]    
+    #     os.path.join(baseDir, 'hdr_fusion', 'flicker_synthetic', 'flicker_1'),
+    #     os.path.join(baseDir, 'hdr_fusion', 'smooth_synthetic', 'flicker_2'),
+    #     os.path.join(baseDir, 'nyu_depth_v2', 'basements', 'basement_001c'),
+    #     os.path.join(baseDir, 'nyu_depth_v2', 'cafe', 'cafe_0001c'),
+    #     os.path.join(baseDir, 'nyu_depth_v2', 'classrooms', 'classroom_0014'),
+    #     os.path.join(baseDir, 'tum', 'rgbd_dataset_freiburg1_desk', 'rgb'),
+    #     os.path.join(baseDir, 'tum', 'rgbd_dataset_freiburg1_xyz', 'rgb'),
+    #     os.path.join(baseDir, 'tum', 'rgbd_dataset_freiburg2_xyz', 'rgb'),
+    # ]
+
 
     for inputDir in inputDirs:
       args.inputDir = inputDir
-      args.cuda = True
+      args.cuda = True      
       forwardAll(model, args)
 
 

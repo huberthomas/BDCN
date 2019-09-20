@@ -3,7 +3,6 @@ import torch
 import torch.optim as optim
 import torch.nn as nn
 from torch.autograd import Variable
-from torch.nn import functional as F
 import time
 import re
 import os
@@ -47,7 +46,7 @@ def test(model, args):
         data = Variable(data, volatile=True)
         t1 = time.time()
         out = model(data)
-        t = F.sigmoid(out[-1]).cpu().data.numpy()[0, 0, :, :]
+        t = torch.sigmoid(out[-1]).cpu().data.numpy()[0, 0, :, :]
         if not os.path.exists(os.path.join(save_dir, 'fuse')):
             os.mkdir(os.path.join(save_dir, 'fuse'))
         cv2.imwrite(os.path.join(save_dir, 'fuse', '%s.jpg'%nm[i]), 255-t*255)

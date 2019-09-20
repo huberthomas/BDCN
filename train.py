@@ -3,7 +3,6 @@ import torch
 import torch.optim as optim
 import torch.nn as nn
 from torch.autograd import Variable
-from torch.nn import functional as F
 import argparse
 import time
 import re
@@ -43,7 +42,7 @@ def cross_entropy_loss2d(inputs, targets, cuda=False, balance=1.1):
     weights = torch.Tensor(weights)
     if cuda:
         weights = weights.cuda()
-    inputs = F.sigmoid(inputs)
+    inputs = torch.sigmoid(inputs)
     loss = nn.BCELoss(weights, size_average=False)(inputs, targets)
     return loss
 
@@ -56,8 +55,10 @@ def train(model, args):
     mean_bgr = np.array(cfg.config[args.dataset]['mean_bgr'])
     yita = args.yita if args.yita else cfg.config[args.dataset]['yita']
     crop_size = args.crop_size
-    train_img = Data(data_root, data_lst, yita, mean_bgr=mean_bgr, crop_size=crop_size)
-    trainloader = torch.utils.data.DataLoader(train_img, batch_size=args.batch_size, shuffle=True, num_workers=5)
+    crop_padding = args.crop_padding
+
+    train_img = Data(data_root, data_lst, yita, mean_bgr=mean_bgr, crop_size=crop_size, shuffle=True, crop_padding=crop_padding)
+    trainloader = torch.utils.data.DataLoader(train_img, batch_size=args.batch_size, shuffle=True, num_workers=8, drop_last=True)
 
     params_dict = dict(model.named_parameters())
     base_lr = args.base_lr
@@ -65,6 +66,7 @@ def train(model, args):
     logger = args.logger
     params = []
     for key, v in params_dict.items():
+        # regular expression match
         if re.match(r'conv[1-5]_[1-3]_down', key):
             if 'weight' in key:
                 params += [{'params': v, 'lr': base_lr*0.1, 'weight_decay': weight_decay*1, 'name': key}]
@@ -100,7 +102,9 @@ def train(model, args):
                 params += [{'params': v, 'lr': base_lr*0.001, 'weight_decay': weight_decay*1, 'name': key}]
             elif 'bias' in key:
                 params += [{'params': v, 'lr': base_lr*0.002, 'weight_decay': weight_decay*0, 'name': key}]
+                
     optimizer = torch.optim.SGD(params, momentum=args.momentum, lr=args.base_lr, weight_decay=args.weight_decay)
+    #optimizer = torch.optim.Adam(params, lr=args.base_lr, weight_decay=args.weight_decay)
     start_step = 1
     mean_loss = []
     cur = 0
@@ -145,7 +149,7 @@ def train(model, args):
                 loss += args.side_weight*cross_entropy_loss2d(out[k], labels, args.cuda, args.balance)/batch_size
             loss += args.fuse_weight*cross_entropy_loss2d(out[-1], labels, args.cuda, args.balance)/batch_size
             loss.backward()
-            batch_loss += loss.data[0]
+            batch_loss += loss.item()#.data[0]
             cur += 1
         # update parameter
         optimizer.step()
@@ -218,7 +222,8 @@ def parse_args():
     parser.add_argument('-l', '--log', type=str, default='log.txt', help='the file to store log, default is log.txt')
     parser.add_argument('-k', type=int, default=1, help='the k-th split set of multicue')
     parser.add_argument('--batch_size', type=int, default=1, help='batch size of one iteration, default 1')
-    parser.add_argument('--crop_size', type=int, default=None, help='the size of image to crop, default not crop')
+    parser.add_argument('--crop_size', type=int, default=None, help='the size of image to crop, default not crop, used for batch-size > 1 if images size are varying')
+    parser.add_argument('--crop_padding', type=int, default=10, help='Padding around the image in pixels to limit the crop region.')
     parser.add_argument('--yita', type=float, default=None, help='the param to operate gt, default is data in the config file, between 0 and 1, it controls good or bad edges from the ground truth')
     parser.add_argument('--complete_pretrain', type=str, default=None, help='finetune on the complete_pretrain, default None')
     parser.add_argument('--side_weight', type=float, default=0.5, help='the loss weight of sideout, default 0.5')

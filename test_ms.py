@@ -3,7 +3,6 @@ import torch
 import torch.optim as optim
 import torch.nn as nn
 from torch.autograd import Variable
-from torch.nn import functional as F
 import time
 import re
 import os
@@ -45,7 +44,7 @@ def test(model, args):
                 data = data.cuda()
             data = Variable(data, volatile=True)
             out = model(data)
-            fuse = F.sigmoid(out[-1]).cpu().data.numpy()[0, 0, :, :]
+            fuse = torch.sigmoid(out[-1]).cpu().data.numpy()[0, 0, :, :]
             fuse = cv2.resize(fuse, (label.size()[3], label.size()[2]), interpolation=cv2.INTER_LINEAR)
             ms_fuse += fuse
         ms_fuse /= len(ms_data)
