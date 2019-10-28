@@ -13,7 +13,7 @@ from datasets.dataset import Data
 import cfg
 import log
 import cv2
-
+import random
 
 def adjust_learning_rate(optimizer, steps, step_size, gamma=0.1, logger=None):
     """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
@@ -46,24 +46,96 @@ def cross_entropy_loss2d(inputs, targets, cuda=False, balance=1.1):
     loss = nn.BCELoss(weights, size_average=False)(inputs, targets)
     return loss
 
+def writeStringList(filePath, strList):
+    '''
+    Write list of strings to a file.
+    '''
+    f = open(filePath, 'w')
+    for line in strList:
+        f.write('%s\n'%(line.strip()))
+    f.close()
+
+def createValidationLst(dataRootDir, dataLstFile):
+    '''
+    Creates a validation list out of a data list file. The validation files
+    are not located in the datalist anymore.
+
+    dataRootDir Data root directory.
+
+    dataLstFile File that contains RGB/ground truth correspondences in each line, e.g.
+    rgb_aug/0.0_0_1_1.0/1311867171.026274.png gt_aug/0.0_0_1_1.0/1311867171.026274.png
+    rgb_aug/22.5_0_0_1.0/1311867171.026274.png gt_aug/22.5_0_0_1.0/1311867171.026274.png
+    rgb_aug/22.5_0_1_1.0/1311867171.026274.png gt_aug/22.5_0_1_1.0/1311867171.026274.png
+
+    '''
+    filePath = os.path.join(dataRootDir, dataLstFile)
+    trainDataLstFile = os.path.join(dataRootDir, 'auto_generated_train_' + dataLstFile)
+    valDataLstFile = os.path.join(dataRootDir, 'auto_generated_val_' + dataLstFile)
+    trainDataLst = []
+    valDataLst = []
+    with open(filePath, 'r') as f:
+        files = f.readlines()
+        #files = [line.strip().split('\n') for line in files]
+        total = len(files)
+        #print(total, files[:4])
+        # 10% of dataset is validation
+        valTotal = total * 0.1
+
+        if valTotal > 100:
+            # limit val to max 100 images
+            valTotal = 100
+
+        while len(valDataLst) < valTotal:
+            k = random.randint(0, total-2)
+            # create new lists
+            trainDataLst = files[:k]
+            valDataLst.append(files[k])
+            trainDataLst.extend(files[k+1:])
+            files = trainDataLst
+            total -= 1
+
+    writeStringList(trainDataLstFile, trainDataLst)
+    writeStringList(valDataLstFile, valDataLst)
+
+    return ('auto_generated_train_' + dataLstFile, 'auto_generated_val_' + dataLstFile)
 
 def train(model, args):
+    logger = args.logger
     data_root = cfg.config[args.dataset]['data_root']
     data_lst = cfg.config[args.dataset]['data_lst']
+
+    val_lst = None
+    if 'validation' in cfg.config[args.dataset] and cfg.config[args.dataset]['validation'] == 1:        
+        if 'val_lst' in cfg.config[args.dataset] and os.path.exists(os.path.join(data_root, cfg.config[args.dataset]['val_lst'])):
+            logger.info('Loading validation set from %s'%(val_lst))
+            val_lst = cfg.config[args.dataset]['val_lst']
+        else:
+            logger.info('Automatically generating training and validation set.')
+            data_lst, val_lst = createValidationLst(data_root, data_lst)
+            logger.info('Finished and stored in %s and %s.'%(data_lst, val_lst))
+
     if 'Multicue' in args.dataset:
         data_lst = data_lst % args.k
+
     mean_bgr = np.array(cfg.config[args.dataset]['mean_bgr'])
     yita = args.yita if args.yita else cfg.config[args.dataset]['yita']
     crop_size = args.crop_size
     crop_padding = args.crop_padding
 
-    train_img = Data(data_root, data_lst, yita, mean_bgr=mean_bgr, crop_size=crop_size, shuffle=True, crop_padding=crop_padding)
+    valloader = None
+    if val_lst is not None:
+        logger.info('Validation: enabled')
+        val_img = Data(data_root, val_lst, yita, mean_bgr=mean_bgr, crop_size=crop_size, shuffle=True, crop_padding=crop_padding)
+        valloader = torch.utils.data.DataLoader(val_img, batch_size=args.batch_size, shuffle=True, num_workers=8, drop_last=True)
+    else:
+        logger.info('Validation: disabled')
+
+    train_img = Data(data_root, data_lst, yita, mean_bgr=mean_bgr, crop_size=crop_size, shuffle=True, crop_padding=crop_padding, flip=True, brightness=True, blur=True, rotate=True)
     trainloader = torch.utils.data.DataLoader(train_img, batch_size=args.batch_size, shuffle=True, num_workers=8, drop_last=True)
 
     params_dict = dict(model.named_parameters())
     base_lr = args.base_lr
     weight_decay = args.weight_decay
-    logger = args.logger
     params = []
     for key, v in params_dict.items():
         # regular expression match
@@ -107,8 +179,11 @@ def train(model, args):
     #optimizer = torch.optim.Adam(params, lr=args.base_lr, weight_decay=args.weight_decay)
     start_step = 1
     mean_loss = []
+    mean_loss_lst = []
+    val_mean_loss = []
     cur = 0
     pos = 0
+    val_pos = 0
     data_iter = iter(trainloader)
     iter_per_epoch = len(trainloader)
     logger.info('*'*40)
@@ -139,14 +214,20 @@ def train(model, args):
             if cur == iter_per_epoch:
                 cur = 0
                 data_iter = iter(trainloader)
+
             images, labels = next(data_iter)
+
             if args.cuda:
                 images, labels = images.cuda(), labels.cuda()
+
             images, labels = Variable(images), Variable(labels)
+
             out = model(images)
+
             loss = 0
             for k in xrange(10):
                 loss += args.side_weight*cross_entropy_loss2d(out[k], labels, args.cuda, args.balance)/batch_size
+
             loss += args.fuse_weight*cross_entropy_loss2d(out[-1], labels, args.cuda, args.balance)/batch_size
             loss.backward()
             batch_loss += loss.item()#.data[0]
@@ -169,6 +250,45 @@ def train(model, args):
             logger.info('iter: %d, lr: %e, loss: %f, time using: %f(%fs/iter)' % (step,
                                                                                   optimizer.param_groups[0]['lr'], np.mean(mean_loss), tm, tm/args.display))
             start_time = time.time()
+
+        # VALIDATION
+        if valloader is not None and step % args.val_step_size == 0:
+            model.train(False)
+            model.eval()
+            logger.info('mode: validation')
+            val_batch_loss = 0
+            for i, data in enumerate(valloader):                
+                val_images, val_labels = data
+
+                if args.cuda:
+                    val_images, val_labels = val_images.cuda(), val_labels.cuda()
+
+                val_images, val_labels = Variable(val_images), Variable(val_labels)
+
+                #optimizer.zero_grad()
+                val_out = model(val_images)
+
+                val_loss = 0
+                for k in xrange(10):
+                    val_loss += args.side_weight*cross_entropy_loss2d(val_out[k], val_labels, args.cuda, args.balance)/batch_size
+
+                val_loss += args.fuse_weight*cross_entropy_loss2d(val_out[-1], val_labels, args.cuda, args.balance)/batch_size
+                val_loss.backward()
+                val_batch_loss += val_loss.item()#.data[0]
+                
+            if len(val_mean_loss) < args.average_loss:
+                val_mean_loss.append(val_batch_loss)
+            else:
+                val_mean_loss[val_pos] = val_batch_loss
+                val_pos = (val_pos + 1) % args.average_loss
+
+            mean_loss_lst.append([step, np.mean(mean_loss), np.mean(val_mean_loss)])
+
+            for entry in mean_loss_lst:
+                logger.info('iter: %d, loss: %f, val_loss: %f'%(entry[0], entry[1], entry[2]))
+
+            logger.info('mode: training')
+            model.train()
 
 
 def main():
@@ -217,6 +337,7 @@ def parse_args():
     parser.add_argument('--average_loss', type=int, default=50, help='smoothed loss, default is 50')
     parser.add_argument('-s', '--snapshots', type=int, default=1000, help='how many iters to store the params, default is 1000')
     parser.add_argument('--step_size', type=int, default=10000, help='the number of iters to decrease the learning rate, default is 10000')
+    parser.add_argument('--val_step_size', type=int, default=100, help='every n steps doing a validation')
     parser.add_argument('--display', type=int, default=20, help='how many iters display one time, default is 20')
     parser.add_argument('-b', '--balance', type=float, default=1.1, help='the parameter to balance the neg and pos, default is 1.1')
     parser.add_argument('-l', '--log', type=str, default='log.txt', help='the file to store log, default is log.txt')
@@ -231,9 +352,9 @@ def parse_args():
     parser.add_argument('--gamma', type=float, default=0.1, help='the decay of learning rate, default 0.1')
     return parser.parse_args()
 
-
 if __name__ == '__main__':
     main()
 
 
 # python train.py -p /home/tom/University/repositories/projects/bdcn/models/bdcn_algo_on_bsds500.pth --max_iter 10000 --cuda
+#python train.py -c --batch_size 10 --crop_size 400 --crop_padding 20 --resume params/bdcn_4000.pth.tar
